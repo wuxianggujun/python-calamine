@@ -20,8 +20,8 @@ dev = [
   "maturin~=1.0",
   "pre-commit~=3.0",
   "pytest~=8.0",
-  "pandas[excel]~=2.0",
-  "numpy~=1.0",
+  "pandas[excel]>=2.2.0",
+  "numpy>=1.26.0",
 ]
 
 [tool.isort]

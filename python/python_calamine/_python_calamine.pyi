@@ -89,6 +89,19 @@ class CalamineSheet:
     ]:
         """Retunrning data from sheet as iterator of lists."""
 
+    def merge_cells(self,start_row:int,start_col:int,end_row:int,end_col:int)->None:
+         """Merge cells in the specified range.
+        
+        Args:
+            start_row (int): Starting row index (0-based)
+            start_col (int): Starting column index (0-based)
+            end_row (int): Ending row index (0-based)
+            end_col (int): Ending column index (0-based)
+        
+        Raises:
+            ValueError: If the range is invalid
+        """
+
 @typing.final
 class CalamineWorkbook(contextlib.AbstractContextManager):
     path: str | None

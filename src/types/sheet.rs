@@ -1,8 +1,10 @@
 use std::fmt::Display;
-use std::sync::Arc;
+use std::sync::{Arc,Mutex};
+use std::collections::HashSet;
 
 use calamine::{Data, Range, Rows, SheetType, SheetVisible};
 use pyo3::class::basic::CompareOp;
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 
@@ -132,6 +134,7 @@ pub struct CalamineSheet {
     #[pyo3(get)]
     name: String,
     range: Arc<Range<Data>>,
+    merged_cells: Arc<Mutex<HashSet<(u32, u32, u32, u32)>>>
 }
 
 impl CalamineSheet {
@@ -139,6 +142,7 @@ impl CalamineSheet {
         CalamineSheet {
             name,
             range: Arc::new(range),
+            merged_cells: Arc::new(Mutex::new(HashSet::new())),
         }
     }
 }
@@ -213,6 +217,59 @@ impl CalamineSheet {
     fn iter_rows(&self) -> CalamineCellIterator {
         CalamineCellIterator::from_range(Arc::clone(&self.range))
     }
+
+
+    #[pyo3(name = "merge_cells")]
+    fn merge_cells(&mut self, start_row: u32, start_col: u32, end_row: u32, end_col: u32) -> PyResult<()> {
+        if start_row > end_row || start_col > end_col {
+            return Err(PyValueError::new_err("Invalid range: start position must be less than or equal to end position"));
+        }
+
+        let height = self.height() as u32;
+        let width = self.width() as u32;
+
+        if end_row >= height || end_col >= width {
+            return Err(PyValueError::new_err(format!(
+                "Range out of bounds. Sheet size is {}x{}, but tried to access cell ({},{})",
+                width, height, end_col, end_row
+            )));
+        }
+
+        let mut range = (*self.range).clone();
+        let mut merged_value = None;
+        
+        if let Some(cell) = range.get_value((start_row as u32, start_col as u32)) {
+            merged_value = Some(cell.clone());
+        }
+
+        for row in start_row..=end_row {
+            for col in start_col..=end_col {
+                if row == start_row && col == start_col {
+                    if let Some(ref value) = merged_value {
+                        range.set_value((row, col), value.clone());
+                    }
+                } else {
+                    range.set_value((row, col), Data::Empty);
+                }
+            }
+        }
+
+        if let Ok(mut merged_cells) = self.merged_cells.lock() {
+            merged_cells.insert((start_row, start_col, end_row, end_col));
+        }
+
+        Ok(())
+    }
+
+    #[getter]
+    fn get_merged_cells(&self) -> PyResult<Vec<(u32, u32, u32, u32)>> {
+        if let Ok(merged_cells) = self.merged_cells.lock() {
+            Ok(merged_cells.iter().cloned().collect())
+        } else {
+            Err(PyValueError::new_err("Failed to access merged cells information"))
+        }
+    }
+
 }
 
 #[pyclass]
